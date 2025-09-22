@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>業務用MP3アップローダー & MR32風プレーヤー</title>
+  <style>
+    /* --- ベース（シンプル＆業務用） --- */
+    :root{--bg:#0f1720;--panel:#0b1220;--muted:#9aa6b2;--accent:#ff7a00;--text:#e6eef6}
+    *{box-sizing:border-box}
+    body{margin:0;background:#f4f6f9;color:#222;font-family:Inter, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif}
+    header{background:#1f2937;color:var(--text);padding:12px 18px;font-weight:600}
+    .wrap{max-width:980px;margin:18px auto;padding:0 16px}
+    .card{background:#fff;border-radius:6px;padding:12px 14px;border:1px solid #e5e7eb;margin-bottom:12px}
+
+    /* --- フォーム周り --- */
+    .row{display:flex;gap:12px;align-items:center}
+    label.upload{flex:1;border:2px dashed #d1d5db;padding:18px;border-radius:6px;text-align:center;cursor:pointer;color:#374151}
+    input[type=file]{display:none}
+    input[type=text]{padding:8px;border:1px solid #cbd5e1;border-radius:6px;flex:1}
+    .btn{background:#111827;color:white;padding:8px 12px;border-radius:6px;border:0;cursor:pointer}
+
+    /* --- トラックリスト --- */
+    .list{margin-top:8px}
+    .item{display:flex;align-items:center;justify-content:space-between;padding:10px;border-bottom:1px solid #f1f5f9}
+    .meta{display:flex;flex-direction:column}
+    .title{font-weight:600}
+    .sub{font-size:12px;color:var(--muted)}
+    .controls button{margin-left:8px}
+
+    /* --- MR32風 フッタープレーヤー --- */
+    .mr32-player{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(180deg,#04050a,#07101a);color:#dbeafe;height:82px;display:flex;align-items:center;padding:8px 14px;border-top:4px solid #0b1220;box-shadow:0 -6px 24px rgba(2,6,23,0.6)}
+    .mr-left{display:flex;align-items:center;gap:12px;width:420px}
+    .mr-controls{display:flex;flex-direction:column;gap:6px}
+    .mr-buttons{display:flex;gap:8px}
+    .mr-btn{background:#071422;border:1px solid #0b1220;color:var(--text);padding:8px;border-radius:6px;min-width:44px;cursor:pointer;font-weight:700}
+    .mr-btn.play{background:linear-gradient(180deg,#ff7a00,#ff5a00);color:#071422}
+    .mr-info{flex:1;padding:0 14px;display:flex;flex-direction:column}
+    .lcd{background:#02060a;color:#8bf38b;padding:6px 8px;border-radius:4px;font-family:monospace;font-weight:700;letter-spacing:1px;overflow:hidden;white-space:nowrap}
+    .marquee{display:inline-block;padding-left:100%;animation:marquee 12s linear infinite}
+    @keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}
+    .progress-wrap{height:6px;background:#06202c;border-radius:4px;margin-top:6px;overflow:hidden}
+    .progress-bar{height:100%;width:0;background:linear-gradient(90deg,#ff7a00,#ffb37a)}
+    .mr-right{width:220px;display:flex;align-items:center;gap:12px;justify-content:flex-end}
+
+    /* --- シンプル表示用調整 --- */
+    @media(max-width:720px){.wrap{padding:0 10px}.mr-left{width:260px}.mr-right{display:none}}
+  </style>
+</head>
+<body>
+  <header>MP3 管理システム（業務用 / MR32風プレーヤー）</header>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="row">
+        <input id="titleInput" type="text" placeholder="タイトルを入力（任意）" />
+        <label class="upload" id="drop">ドラッグ＆ドロップ、またはファイルを選択
+          <input id="file" type="file" accept="audio/*,audio/mpeg" />
+        </label>
+        <button id="uploadBtn" class="btn">アップロード</button>
+      </div>
+      <div id="uploadStatus" style="margin-top:8px" class="sub"></div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:700">登録済みトラック</div>
+        <div class="sub">クリックでフッターに読み込み・再生</div>
+      </div>
+      <div id="tracks" class="list"></div>
+    </div>
+  </div>
+
+  <!-- MR32風フッタープレーヤー -->
+  <div class="mr32-player" id="mr32">
+    <div class="mr-left">
+      <div style="width:44px;height:44px;border-radius:4px;background:#081421;border:1px solid #0b1b2b;display:flex;align-items:center;justify-content:center;font-weight:800;color:#dbeafe">MR</div>
+      <div class="mr-controls">
+        <div class="mr-buttons">
+          <button id="prevBtn" class="mr-btn">??</button>
+          <button id="playBtn" class="mr-btn play">?</button>
+          <button id="nextBtn" class="mr-btn">??</button>
+        </div>
+        <div class="progress-wrap" title="再生進捗">
+          <div id="footerProgress" class="progress-bar"></div>
+        </div>
+      </div>
+    </div>
+    <div class="mr-info">
+      <div class="lcd" id="lcd">
+        <span id="lcdText">-- 無音 --</span>
+      </div>
+    </div>
+    <div class="mr-right">
+      <div class="sub" id="timeDisplay">00:00 / 00:00</div>
+      <div style="width:120px">
+        <input id="vol" type="range" min="0" max="1" step="0.01" value="1" style="width:100%" />
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // Firebase SDK modular
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
+    import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-storage.js';
+    import { getAnalytics } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics.js';
+
+    // Firebase 設定（既に提供済み）
+    const firebaseConfig = {
+      apiKey: "AIzaSyCzZnkm0Cl5D0RmsCSpogANEY5uhDLwF8w",
+      authDomain: "mp3player-7a205.firebaseapp.com",
+      databaseURL: "https://mp3player-7a205-default-rtdb.firebaseio.com",
+      projectId: "mp3player-7a205",
+      storageBucket: "mp3player-7a205.firebasestorage.app",
+      messagingSenderId: "339480615184",
+      appId: "1:339480615184:web:bd37f04a2d1e864d046d95",
+      measurementId: "G-1MZPR8DJ6K"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+    const analytics = getAnalytics(app);
+
+    // UI
+    const fileInput = document.getElementById('file');
+    const drop = document.getElementById('drop');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const titleInput = document.getElementById('titleInput');
+    const uploadStatus = document.getElementById('uploadStatus');
+    const tracksEl = document.getElementById('tracks');
+
+    // Footer player
+    const playBtn = document.getElementById('playBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const lcdText = document.getElementById('lcdText');
+    const footerProgress = document.getElementById('footerProgress');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const vol = document.getElementById('vol');
+
+    let tracks = []; // {id, title, name, url, size}
+    let currentIndex = -1;
+    const audio = new Audio();
+    audio.crossOrigin = 'anonymous';
+    audio.preload = 'auto';
+
+    // --- UI helpers ---
+    function setStatus(msg){ uploadStatus.textContent = msg }
+    function formatTime(s){ if(isNaN(s)) return '00:00'; const m=Math.floor(s/60); const sec=Math.floor(s%60); return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}` }
+
+    // --- drag & drop ---
+    ;['dragenter','dragover'].forEach(e=>drop.addEventListener(e,(ev)=>{ev.preventDefault();drop.style.background='#eef2ff'}));
+    ;['dragleave','drop'].forEach(e=>drop.addEventListener(e,(ev)=>{ev.preventDefault();drop.style.background=''}));
+    drop.addEventListener('drop',(e)=>{ const f=e.dataTransfer.files?.[0]; if(f) fileInput.files = e.dataTransfer.files; });
+
+    // --- upload process ---
+    uploadBtn.addEventListener('click', async ()=>{
+      const f = fileInput.files?.[0];
+      if(!f){ alert('ファイルを選択してください'); return; }
+      if(!f.type.startsWith('audio')){ alert('音声ファイルを選択してください'); return; }
+      const title = titleInput.value.trim() || f.name;
+      setStatus('アップロード中...');
+
+      const id = Date.now().toString();
+      const ext = f.name.split('.').pop();
+      const path = `tracks/${id}.${ext}`;
+      const sRef = storageRef(storage, path);
+      const uploadTask = uploadBytesResumable(sRef, f);
+
+      uploadTask.on('state_changed', (snap)=>{
+        const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+        setStatus(`アップロード ${pct}%`);
+      }, (err)=>{ console.error(err); setStatus('アップロード失敗'); }, async ()=>{
+        const url = await getDownloadURL(uploadTask.snapshot.ref);
+        await addDoc(collection(db,'tracks'),{title, name:f.name, size:f.size, url, path, createdAt:serverTimestamp()});
+        setStatus('アップロード完了');
+        titleInput.value = '';
+        fileInput.value = '';
+      });
+    });
+
+    // --- list & realtime sync ---
+    const q = query(collection(db,'tracks'), orderBy('createdAt','desc'));
+    onSnapshot(q,(snap)=>{
+      tracks = [];
+      tracksEl.innerHTML = '';
+      snap.forEach(doc=>{
+        const d = doc.data(); d.id = doc.id; tracks.push(d);
+
+        const item = document.createElement('div'); item.className='item';
+        const meta = document.createElement('div'); meta.className='meta';
+        const t = document.createElement('div'); t.className='title'; t.textContent = (d.title? d.title : d.name) + ' ? ' + d.name;
+        const s = document.createElement('div'); s.className='sub'; s.textContent = `${(d.size?Math.round(d.size/1024):0)} KB ・ ${d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : ''}`;
+        meta.appendChild(t); meta.appendChild(s);
+
+        const controls = document.createElement('div'); controls.className='controls';
+        const loadBtn = document.createElement('button'); loadBtn.className='btn'; loadBtn.textContent='再生';
+        loadBtn.addEventListener('click', ()=>{ const idx = tracks.findIndex(x=>x.id===d.id); if(idx>=0) playIndex(idx); });
+
+        const delBtn = document.createElement('button'); delBtn.className='btn'; delBtn.style.background='#b91c1c'; delBtn.style.marginLeft='8px'; delBtn.textContent='削除';
+        delBtn.addEventListener('click', async ()=>{ if(!confirm('削除しますか？')) return; try{ await deleteDoc(doc(db,'tracks',d.id)); const objRef = storageRef(storage, d.path); await deleteObject(objRef); setStatus('削除しました'); }catch(e){ console.error(e); setStatus('削除に失敗しました'); } });
+
+        controls.appendChild(loadBtn);
+        controls.appendChild(delBtn);
+
+        item.appendChild(meta); item.appendChild(controls);
+        tracksEl.appendChild(item);
+      });
+    },(err)=>{ console.error(err); setStatus('トラック取得エラー'); });
+
+    // --- footer player functions ---
+    function updateLCD(text){ lcdText.innerHTML = `<span class=marquee>${text.replace(/</g,'')}&nbsp;&nbsp;&nbsp;</span>` }
+
+    function playIndex(i){
+      if(i<0 || i>=tracks.length) return;
+      currentIndex = i;
+      const t = tracks[i];
+      audio.src = t.url; audio.currentTime = 0; audio.play();
+      playBtn.textContent = '■'; playBtn.classList.add('playing');
+      updateLCD(t.title ? t.title : t.name);
+    }
+
+    playBtn.addEventListener('click', ()=>{
+      if(audio.paused){ audio.play(); playBtn.textContent='■'; playBtn.classList.add('playing'); }
+      else { audio.pause(); playBtn.textContent='?'; playBtn.classList.remove('playing'); }
+    });
+    prevBtn.addEventListener('click', ()=>{ if(tracks.length===0) return; const idx = currentIndex>0 ? currentIndex-1 : tracks.length-1; playIndex(idx); });
+    nextBtn.addEventListener('click', ()=>{ if(tracks.length===0) return; const idx = (currentIndex+1)%tracks.length; playIndex(idx); });
+
+    audio.addEventListener('timeupdate', ()=>{
+      const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+      footerProgress.style.width = pct + '%';
+      timeDisplay.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+    });
+    audio.addEventListener('ended', ()=>{ nextBtn.click(); });
+
+    vol.addEventListener('input', ()=>{ audio.volume = parseFloat(vol.value); });
+
+    // load first track if available when clicking header area? keep manual
+
+    // init: show default lcd
+    updateLCD('-- 無音 --');
+  </script>
+</body>
+</html>
